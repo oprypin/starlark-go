@@ -3467,7 +3467,8 @@ sorted(["two", "three", "four"], key=len, reverse=True)         # ["three", "fou
 `str(x)` formats its argument as a string.
 
 If x is a string, the result is x (without quotation).
-All other strings, such as elements of a list of strings, are double-quoted.
+For all other built-in types, this is the same as `repr`. So e.g. elements of a list of strings are double-quoted.
+Custom string-like types may choose to provide a custom implementation of `str` that differs from `repr`.
 
 ```python
 str(1)                          # '1'

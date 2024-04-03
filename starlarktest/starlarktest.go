@@ -112,11 +112,7 @@ func error_(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, k
 	stk := thread.CallStack()
 	stk.Pop()
 	fmt.Fprintf(buf, "%sError: ", stk)
-	if s, ok := starlark.AsString(args[0]); ok {
-		buf.WriteString(s)
-	} else {
-		buf.WriteString(args[0].String())
-	}
+	buf.WriteString(starlark.ToString(args[0]))
 	GetReporter(thread).Error(buf.String())
 	return starlark.None, nil
 }

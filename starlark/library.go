@@ -376,8 +376,8 @@ func fail(thread *Thread, b *Builtin, args Tuple, kwargs []Tuple) (Value, error)
 		if i > 0 {
 			buf.WriteString(sep)
 		}
-		if s, ok := AsString(v); ok {
-			buf.WriteString(s)
+		if s, ok := v.(Stringable); ok {
+			buf.WriteString(s.StrString())
 		} else {
 			writeValue(buf, v, nil)
 		}
@@ -805,11 +805,12 @@ func print(thread *Thread, b *Builtin, args Tuple, kwargs []Tuple) (Value, error
 		if i > 0 {
 			buf.WriteString(sep)
 		}
-		if s, ok := AsString(v); ok {
-			buf.WriteString(s)
-		} else if b, ok := v.(Bytes); ok {
-			buf.WriteString(string(b))
-		} else {
+		switch v := v.(type) {
+		case Bytes:
+			buf.WriteString(string(v))
+		case Stringable:
+			buf.WriteString(v.StrString())
+		default:
 			writeValue(buf, v, nil)
 		}
 	}
@@ -1086,29 +1087,7 @@ func str(thread *Thread, _ *Builtin, args Tuple, kwargs []Tuple) (Value, error) 
 	if len(args) != 1 {
 		return nil, fmt.Errorf("str: got %d arguments, want exactly 1", len(args))
 	}
-	switch x := args[0].(type) {
-	case String:
-		return x, nil
-	case Bytes:
-		// Invalid encodings are replaced by that of U+FFFD.
-		return String(utf8Transcode(string(x))), nil
-	default:
-		return String(x.String()), nil
-	}
-}
-
-// utf8Transcode returns the UTF-8-to-UTF-8 transcoding of s.
-// The effect is that each code unit that is part of an
-// invalid sequence is replaced by U+FFFD.
-func utf8Transcode(s string) string {
-	if utf8.ValidString(s) {
-		return s
-	}
-	var out strings.Builder
-	for _, r := range s {
-		out.WriteRune(r)
-	}
-	return out.String()
+	return String(ToString(args[0])), nil
 }
 
 // https://github.com/google/starlark-go/blob/master/doc/spec.md#tuple
@@ -1805,8 +1784,8 @@ func string_format(_ *Thread, b *Builtin, args Tuple, kwargs []Tuple) (Value, er
 
 		switch conv {
 		case "s":
-			if str, ok := AsString(arg); ok {
-				buf.WriteString(str)
+			if str, ok := arg.(Stringable); ok {
+				buf.WriteString(str.StrString())
 			} else {
 				writeValue(buf, arg, nil)
 			}

@@ -1606,8 +1606,8 @@ func interpolate(format string, x Value) (Value, error) {
 		}
 		switch c := format[0]; c {
 		case 's', 'r':
-			if str, ok := AsString(arg); ok && c == 's' {
-				buf.WriteString(str)
+			if str, ok := arg.(Stringable); ok && c == 's' {
+				buf.WriteString(str.StrString())
 			} else {
 				writeValue(buf, arg, nil)
 			}

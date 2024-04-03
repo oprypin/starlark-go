@@ -82,8 +82,9 @@ import (
 
 // Value is a value in the Starlark interpreter.
 type Value interface {
-	// String returns the string representation of the value.
-	// Starlark string values are quoted as if by Python's repr.
+	// String returns the string representation of the value for debugging.
+	// This backs the implementation of `repr()`.
+	// E.g. like in Python, string values are quoted.
 	String() string
 
 	// Type returns a short string describing the value's type.
@@ -105,6 +106,16 @@ type Value interface {
 	// contains a non-hashable value. The hash is used only by dictionaries and
 	// is not exposed to the Starlark program.
 	Hash() (uint32, error)
+}
+
+// A Stringable value is a value that defines a custom output for the `str()`
+// function. Values that don't define this fall back to the result of `repr()`.
+type Stringable interface {
+	Value
+	// StrString converts the value to a human-readable string.
+	// This backs the implementation of `str()` and transitively
+	// `print()` and string formatting operations.
+	StrString() string
 }
 
 // A Comparable is a value that defines its own equivalence relation and
@@ -555,6 +566,7 @@ func (f Float) Unary(op syntax.Token) (Value, error) {
 type String string
 
 func (s String) String() string        { return syntax.Quote(string(s), false) }
+func (s String) StrString() string     { return string(s) }
 func (s String) GoString() string      { return string(s) }
 func (s String) Type() string          { return "string" }
 func (s String) Freeze()               {} // immutable
@@ -584,7 +596,20 @@ func (x String) CompareSameType(op syntax.Token, y_ Value, depth int) (bool, err
 	return threeway(op, strings.Compare(string(x), string(y))), nil
 }
 
+// Deprecated: Prefer ToString for the `str()` conversion or `.(starlark.String)` for exact checks.
 func AsString(x Value) (string, bool) { v, ok := x.(String); return string(v), ok }
+
+// ToString implements the `str()` conversion for a value.
+func ToString(x Value) string {
+	switch x := x.(type) {
+	case Bytes:
+		return utf8Transcode(string(x))
+	case Stringable:
+		return x.StrString()
+	default:
+		return x.String()
+	}
+}
 
 // A stringElems is an iterable whose iterator yields a sequence of
 // elements (bytes), either numerically or as successive substrings.
@@ -1720,4 +1745,18 @@ func (b Bytes) Slice(start, end, step int) Value {
 func (x Bytes) CompareSameType(op syntax.Token, y_ Value, depth int) (bool, error) {
 	y := y_.(Bytes)
 	return threeway(op, strings.Compare(string(x), string(y))), nil
+}
+
+// utf8Transcode returns the UTF-8-to-UTF-8 transcoding of s.
+// The effect is that each code unit that is part of an
+// invalid sequence is replaced by U+FFFD.
+func utf8Transcode(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	var out strings.Builder
+	for _, r := range s {
+		out.WriteRune(r)
+	}
+	return out.String()
 }
